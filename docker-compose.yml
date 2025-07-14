@@ -1,0 +1,165 @@
+services:
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vibe-kanban-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://backend:8000
+      - NODE_ENV=development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - vibe-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vibe-kanban-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/vibe_kanban
+      - REDIS_URL=redis://redis:6379
+      - QDRANT_URL=http://qdrant:6333
+      - NODE_ENV=development
+      - JWT_SECRET=your-jwt-secret-change-in-production
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    networks:
+      - vibe-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: vibe-kanban-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=vibe_kanban
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - vibe-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vibe_kanban"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # Redis for Session Management
+  redis:
+    image: redis:7-alpine
+    container_name: vibe-kanban-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redis_password
+    volumes:
+      - redis_data:/data
+    networks:
+      - vibe-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: vibe-kanban-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - vibe-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: vibe-kanban-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - vibe-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+networks:
+  vibe-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  nginx_logs:
+    driver: local
