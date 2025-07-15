@@ -1,0 +1,29 @@
+# Database dependencies
+alembic==1.13.1
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.25
+
+# Vector database
+qdrant-client==1.7.0
+
+# Development dependencies
+python-dotenv==1.0.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Web framework
+fastapi==0.104.1
+uvicorn==0.24.0
+
+# File processing
+python-multipart==0.0.6
+aiofiles==23.2.1
+PyPDF2==3.0.1
+python-docx==1.1.0
+pydub==0.25.1
+python-magic==0.4.27
+
+# Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+secure-filename==0.1.0
