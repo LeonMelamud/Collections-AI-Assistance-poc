@@ -144,3 +144,36 @@ class TaskEmbedding(Base):
         Index('idx_task_embeddings_qdrant', 'qdrant_point_id', unique=True),
         Index('idx_task_embeddings_hash', 'content_hash'),
     )
+
+
+class File(Base):
+    __tablename__ = "files"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    filename = Column(String(255), nullable=False)
+    original_filename = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    mime_type = Column(String(100), nullable=False)
+    file_type = Column(String(50), nullable=False)  # document, audio, image, other
+    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id"), nullable=True)
+    extracted_text = Column(Text, nullable=True)
+    metadata = Column(JSON, nullable=True)
+    processing_status = Column(String(50), nullable=False, default="pending")  # pending, processing, completed, failed
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # Relationships
+    uploader = relationship("User")
+    project = relationship("Project")
+    task = relationship("Task")
+    
+    __table_args__ = (
+        Index('idx_files_uploader', 'uploaded_by'),
+        Index('idx_files_project', 'project_id'),
+        Index('idx_files_task', 'task_id'),
+        Index('idx_files_type_status', 'file_type', 'processing_status'),
+        Index('idx_files_created', 'created_at'),
+    )
